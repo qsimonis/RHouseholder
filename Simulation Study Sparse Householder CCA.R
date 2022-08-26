@@ -129,6 +129,7 @@ plot(x, dcauchy(x, location = 2, scale = 2), type = "l", col = "red")
 
 
 
+
 # Data Generation
 
 K.true = c(4,15,30) # True dimensionality of the shared latent variable (number of non-zero eigenvalues)
@@ -178,7 +179,7 @@ library(rstan)
 # This will be our first "true" data:
 
 Y <- t(CCA.dataset.generator(N.observations = 300, data1.dim = 3, data2.dim = 4, view1.dim = 1, view2.dim = 2, shared.dim = 2, alpha.noise = 1,
-                           beta.noise = 1, alpha.eigenvalue = 1, beta.eigenvalue = 1, column.loading.variance.parameters = c(1,1), percent = .7))
+                           beta.noise = 1, alpha.eigenvalue = 10, beta.eigenvalue = 1, column.loading.variance.parameters = c(1,1), percent = .7))
 
 simulation.data <- list(
   N = nrow(Y),
@@ -186,7 +187,7 @@ simulation.data <- list(
   D_2 = 4, 
   K_1 = 1, 
   K_2 = 2,
-  D = 7,
+  D = ncol(Y),
   Q = 7,
   Y = Y
 )
@@ -195,21 +196,12 @@ simulation.data <- list(
 file.CCA <- "C:/Users/qsimo/Documents/Code/RHouseholder/CCA_House_Troubleshooting.stan"
 
 
-fit.CCA<- stan_model(file.CCA)
 
+fit.CCA <- stan_model(file.CCA)
 
-fitted.model <- stan(
-  file = file.CCA.troubleshooting,
-  data = simulation.data,
-  chains = 4,
-  warmup = 1000,
-  iter = 2000,
-  cores = 1,
-  refresh = 0
-)
+fit <- sampling(fit.CCA, data = simulation.data)
 
-
-
+fit.model <- stan(file = file.CCA, data = simulation.data, chains = 1, iter = 500, warmup = 300)
 
 
 
