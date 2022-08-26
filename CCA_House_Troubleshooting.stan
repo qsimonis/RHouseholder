@@ -55,7 +55,8 @@ functions{
     vector eigenvalue_converter(vector v){
       int n = num_elements(v);
       vector[n] eigenvalues;
-      for(i in 1:n){
+      eigenvalues[1] = exp(v[1]);
+      for(i in 2:n){
         for(j in 1:i){
           eigenvalues[i] = exp(v[1] - sum(v[2:j]));
         }
@@ -75,32 +76,45 @@ data{
 }
 parameters{
     //vector[D*(D+1)/2 + D] v;
-    vector[D*Q - Q*(Q-1)/2] v;
-    positive_ordered[Q] sigma;
+    vector[D*Q - Q*(Q-1)%/%2] v;
+    positive_ordered[Q] eigen_roots;
     
-    vector[D] mu;
     real<lower = 0> tau_1;
     real<lower = 0> tau_2;
     real<lower = 0> eigen_variance;
     matrix[D , K_1 + K_2] B;
-    vector[K_1 + K_2] beta;
-    vector[K_1 + K_2] alpha;
+    vector<lower = 0, upper = 1>[K_1 + K_2] beta;
+    vector<lower = 0>[K_1 + K_2] alpha;
     vector[K_1 + K_2] X;
 }
 transformed parameters{
     matrix[D, Q] W;
     cholesky_factor_cov[D] L;
-    vector<lower = 0>[Q] eigen_differences;
+    
+    vector[Q] eigen_roots_corrected;
     {
-      eigen_differences[1] = log(sigma[1]);
-      for(q in 2:Q){
-        eigen_differences[q] = log(sigma[q - 1]) - log(sigma[q]);
+      for(i in 1:Q){
+        eigen_roots_corrected[i] = eigen_roots[Q - i];
       }
     }
+    
+    vector<lower = 0>[Q] eigen_differences;
+    {
+      eigen_differences[1] = 2*log(eigen_roots_corrected[1]);
+      print("1:", "eigen_differences[1]", eigen_differences[1]);
+      print("q", 1, "eigen_roots_corrected[1]", eigen_roots_corrected[1]);
+      for(q in 2:Q){
+        eigen_differences[q] = 2*log(eigen_roots_corrected[q-1]+.01) - 2*log(eigen_roots_corrected[q] + .01);
+        print("q", q, "eigen_roots_corrected[q]", eigen_roots_corrected[q]);
+        print("q:", q,  "eigen_differences[q]", eigen_differences[q]);
+      }
+    }
+    
     vector[Q] eigen_max;
     {
-      for(q in 1:Q){
-        eigen_max[q] = max(eigen_differences[1:q]);
+      eigen_max[1] = eigen_differences[1];
+      for(q in 2:Q){
+        eigen_max[q] = max(eigen_differences[2:q]);
       }
     }
     
@@ -108,7 +122,7 @@ transformed parameters{
         matrix[D, Q] U = orthogonal_matrix(D, Q, v);
         matrix[D, D] K;
         
-        W = U*diag_matrix(sqrt(eigenvalue_converter(eigen_differences)));
+        W = U*diag_matrix(eigen_roots);
         
         K = W*W';
         for (d in 1:D_1)
@@ -120,12 +134,12 @@ transformed parameters{
     }
 }
 model{
-    mu ~ normal(0, 10);
     tau_1 ~ cauchy(0,1);
     tau_2 ~ cauchy(0,1);
     beta ~ beta(.001,.001);
     alpha ~ cauchy(0,1);
-    
+    eigen_variance ~ cauchy(0,1);
+
     for(d in 1:(D_1 + D_2)){
       for(k in 1:(K_1 + K_2)){
         if(k <= K_1){
@@ -138,18 +152,18 @@ model{
     }
     
     v ~ normal(0,1);
-    
-    //prior on sigma
-    eigen_differences[1] ~ normal(0, eigen_variance);
-    eigen_differences[2] ~ normal(0, eigen_variance/eigen_differences[1]);
-    eigen_differences[3] ~ normal(0, eigen_variance/(eigen_differences[2]));
+
+    //prior on singular values
+    eigen_roots_corrected[1] ~ normal(0, eigen_variance);
+    eigen_roots_corrected[2] ~ normal(0, eigen_variance*eigen_differences[1]);
+    eigen_roots_corrected[3] ~ normal(0, eigen_variance*eigen_differences[2]);
     for(q in 4:Q){
-      eigen_differences[q] ~ normal(0, eigen_variance*(eigen_max[q]/eigen_differences[q - 1]));
+      eigen_roots_corrected[q] ~ normal(0, eigen_variance*eigen_max[q]);
     }
-    target += -sum(log(sigma));
-    
+    target += sum(2*log(eigen_roots));
+
     X ~ normal(0,1);
-    Y ~ multi_normal_cholesky(B*X, L);   
+    Y ~ multi_normal_cholesky(B*X, L); 
 }
 generated quantities {
     matrix[D, Q] U_n = orthogonal_matrix(D, Q, v);
@@ -159,5 +173,5 @@ generated quantities {
         if (U_n[1,q] < 0){
             U_n[,q] = -U_n[,q];
         }
-    W_n = U_n*diag_matrix(sqrt(eigenvalue_converter(eigen_differences)));
+    W_n = U_n*diag_matrix(eigen_roots);
 }
