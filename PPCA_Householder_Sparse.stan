@@ -90,6 +90,12 @@ model{
     v ~ normal(0,1);
     
     //prior on sigma
+    target += 
+    
+    
+    
+    
+    # this was the previous prior
     target += -0.5*sum(square(sigma)) + (D-Q-1)*sum(log(sigma));
     for (i in 1:Q)
         for (j in (i+1):Q)
@@ -99,8 +105,8 @@ model{
     Y ~ multi_normal_cholesky(mu, L);   
 }
 generated quantities {
-    matrix[D, Q] U_n = orthogonal_matrix(D, Q, v);
-    matrix[D, Q] W_n;
+    matrix[N, K] U_n = orthogonal_matrix(N, K, v);
+    matrix[N, K] W_n;
     
     for (q in 1:Q)
         if (U_n[1,q] < 0){
@@ -108,4 +114,3 @@ generated quantities {
         }
     W_n = U_n*diag_matrix(sigma);
 }
-

@@ -83,7 +83,7 @@ parameters{
     real<lower = 0> tau_2;
     real<lower = 0> eigen_variance;
     matrix[D , K_1 + K_2] B;
-    vector<lower = 0, upper = 1>[K_1 + K_2] beta;
+    vector<lower = 0, upper = 1>[K_1 + K_2] beta_column;
     vector<lower = 0>[K_1 + K_2] alpha;
     vector[K_1 + K_2] X;
 }
@@ -136,17 +136,17 @@ transformed parameters{
 model{
     tau_1 ~ cauchy(0,1);
     tau_2 ~ cauchy(0,1);
-    beta ~ beta(.001,.001);
+    beta_column ~ beta(.001,.001);
     alpha ~ cauchy(0,1);
     eigen_variance ~ cauchy(0,1);
 
     for(d in 1:(D_1 + D_2)){
       for(k in 1:(K_1 + K_2)){
         if(k <= K_1){
-          B[d,k] ~ normal(0,beta[k]/alpha[k]);
+          B[d,k] ~ normal(0,beta_column[k]/alpha[k]);
         }
         else{
-          B[d,k] ~ normal(0, (1- beta[k])/alpha[k]);
+          B[d,k] ~ normal(0, (1- beta_column[k])/alpha[k]);
         }
       }
     }
