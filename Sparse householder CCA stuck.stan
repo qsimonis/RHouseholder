@@ -84,7 +84,8 @@ parameters{
     real<lower = 0> eigen_variance;
     matrix[D , K_1 + K_2] B;
     vector<lower = 0>[K_1 + K_2] column_tau;
-    vector<lower = 0>[2*(K_1 + K_2)] column_view_lambda;
+    vector<lower = 0>[K_1 + K_2] column_view_lambda;
+    vector<lower = 0>[(K_1 + K_2)] column_view_alpha;
     vector<lower = 0>[K_1 + K_2] alpha;
     vector[K_1 + K_2] X[N];
 }
@@ -95,7 +96,9 @@ transformed parameters{
     vector[Q] eigen_roots_corrected;
     vector[Q] eigen_max;
     vector[Q] relative_min;
-    vector<lower = 0>[2*(K_1 + K_2)] column_variance;
+    vector<lower = 0>[K_1 + K_2] column_view_beta;
+    vector<lower = 0>[(K_1 + K_2)] column_variance_1;
+    vector<lower = 0>[(K_1 + K_2)] column_variance_2;
     {
       for(i in 1:Q){
         eigen_roots_corrected[i] = eigen_roots[(Q - i) + 1];
@@ -103,13 +106,18 @@ transformed parameters{
     }
     {
       for(i in 1:(K_1 + K_2)){
+        column_view_beta[i] = (1 - column_view_alpha[i]);
+        if(column_view_beta[i] < .01){
+          column_view_beta[i] = column_view_beta[i] + .01;
+        }
         for(j in 1:(D_1 + D_2)){
           if(j <= D_1){
-            column_variance[2*i - 1] = column_tau[i]*column_view_lambda[(2*i) - 1];
+            column_variance_1[i] = column_tau[i]*column_view_lambda[j];
           }
           else{
-            column_variance[2*i] = column_tau[i]*column_view_lambda[2*i];
+            column_variance_2[i] = column_tau[i]*(1 - column_view_lambda[j]);
           }
+      }
       }
     }
     {
@@ -146,19 +154,19 @@ transformed parameters{
         }
         L = cholesky_decompose(K);
     }
-    print(c("The estimated singular values:", eigen_roots));
-    print(c("The estimated maximum eigen gaps", eigen_max));
-    print(c("The estimated minimum eigen gaps"), relative_min);
-    print(c("The estimated column variances for view 1"), column_variances[2*[1:(K_1 + K_2)] - 1]);
-    print(c("The estimated column variances for view 2"), column_variances[2*[1:(K_1 + K_2)]]);
-    print(c("The estimated global column variances", column_tau[1:(K_1 + K_2)]));
-    
+    print("The estimated singular values:", eigen_roots);
+    print("The estimated maximum eigen gaps", eigen_max);
+    print("The estimated minimum eigen gaps", relative_min);
+    print("The estimated column variances for view 1", column_variance_2);
+    print("The estimated column variances for view 2", column_variance_1);
+    print("The estimated global column variances", column_tau[1:(K_1 + K_2)]);
 }
 model{
     tau_1 ~ cauchy(0,1);
     tau_2 ~ cauchy(0,1);
     column_tau ~ cauchy(0,1);
-    column_view_lambda ~ cauchy(0,1);
+    column_view_alpha ~ beta(.005,.005);
+    column_view_lambda ~ beta(column_view_alpha, column_view_beta);
     eigen_variance ~ cauchy(0,1);
     for(q in 1:Q){
       local_eigen_variance[q] ~ beta(max(eigen_differences[1:q]), min(eigen_differences[1:q]));
@@ -166,10 +174,10 @@ model{
     for(d in 1:(D_1 + D_2)){
       for(k in 1:(K_1 + K_2)){
         if(d <= D_1){
-          B[d,k] ~ normal(0,column_variance[(2*k) - 1]);
+          B[d,k] ~ normal(0,column_variance_1[k]);
         }
         else{
-          B[d,k] ~ normal(0, column_variance[2*k]);
+          B[d,k] ~ normal(0, column_variance_2[k]);
         }
       }
     }
