@@ -182,7 +182,7 @@ print(fit)
 
 
 
-file.CCA.laptop <- "D:/School/Projects/GitMCMCHouseholder/RHouseholder/CCA_House_Troubleshooting.stan"
+file.CCA.laptop <- "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Sparse Householder CCA.stan"
 
 fit.CCA.laptop <- stan_model(file.CCA.laptop)
 

@@ -110,7 +110,7 @@ transformed parameters{
       }
     }
     {
-      eigen_max[1] = .01;
+      eigen_max[1] = eigen_differences[1];
       for(q in 2:Q){
         eigen_max[q] = max(eigen_differences[2:q]);
       }
@@ -144,7 +144,7 @@ model{
     alpha ~ cauchy(0,1);
     eigen_variance ~ cauchy(0,1);
     for(q in 1:Q){
-      local_variance[q] ~ beta(eigen_max[q], relative_min[q]);
+      local_variance[q] ~ beta(max(eigen_differences[1:q]), min(eigen_differences[1:q]));
     }
     print(local_variance);
     for(d in 1:(D_1 + D_2)){
@@ -162,9 +162,7 @@ model{
 
     //prior on singular values
     eigen_roots_corrected[1] ~ exponential(10);
-    eigen_roots_corrected[2] ~ normal(0, eigen_variance*local_variance[1]);
-    eigen_roots_corrected[3] ~ normal(0, eigen_variance*local_variance[2]);
-    for(q in 4:Q){
+    for(q in 2:Q){
       eigen_roots_corrected[q] ~ normal(0, eigen_variance*local_variance[q - 1]);
     }
     target += sum(2*log(eigen_roots));
