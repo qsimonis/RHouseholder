@@ -84,63 +84,61 @@ parameters{
     real<lower = 0> eigen_variance;
     matrix[D , K_1 + K_2] B;
     vector<lower = 0>[K_1 + K_2] column_tau;
-    vector<lower = 0>[K_1 + K_2] column_view_lambda;
-    vector<lower = 0>[(K_1 + K_2)] column_view_alpha;
+    vector<lower = 0, upper = 1>[K_1 + K_2] column_view_lambda;
+    vector<lower = 0, upper = 1>[(K_1 + K_2)] column_view_alpha;
     vector<lower = 0>[K_1 + K_2] alpha;
     vector[K_1 + K_2] X[N];
 }
 transformed parameters{
     matrix[D, Q] W;
     cholesky_factor_cov[D] L;
-    vector<lower = 0>[Q] eigen_differences;
-    vector[Q] eigen_roots_corrected;
-    vector[Q] eigen_max;
-    vector[Q] relative_min;
+    vector<lower = 0>[D] eigen_differences;
+    vector[D] eigen_roots_corrected;
+    vector[D] eigen_max;
+    vector[D] relative_min;
     vector<lower = 0>[K_1 + K_2] column_view_beta;
     vector<lower = 0>[(K_1 + K_2)] column_variance_1;
     vector<lower = 0>[(K_1 + K_2)] column_variance_2;
+    vector[D] mu[N];
     {
-      for(i in 1:Q){
-        eigen_roots_corrected[i] = eigen_roots[(Q - i) + 1];
+      for(i in 1:D){
+        eigen_roots_corrected[i] = eigen_roots[(D - i) + 1];
       }
     }
     {
       for(i in 1:(K_1 + K_2)){
-        column_view_beta[i] = (1 - column_view_alpha[i]);
-        if(column_view_beta[i] < .01){
-          column_view_beta[i] = column_view_beta[i] + .01;
-        }
+        column_view_beta[i] = 1 - column_view_alpha[i];
         for(j in 1:(D_1 + D_2)){
           if(j <= D_1){
-            column_variance_1[i] = column_tau[i]*column_view_lambda[j];
+            column_variance_1[i] = (column_view_lambda[i])/column_tau[i];
           }
           else{
-            column_variance_2[i] = column_tau[i]*(1 - column_view_lambda[j]);
+            column_variance_2[i] = (1 - column_view_lambda[i])/column_tau[i];
           }
       }
       }
     }
     {
       eigen_differences[1] = 2*log(eigen_roots_corrected[1]);
-      for(q in 2:Q){
-        eigen_differences[q] = 2*log(eigen_roots_corrected[q-1]+.01) - 2*log(eigen_roots_corrected[q] + .01);
+      for(d in 2:D){
+        eigen_differences[d] = 2*log(eigen_roots_corrected[d-1]+.01) - 2*log(eigen_roots_corrected[d] + .01);
       }
     }
     {
       eigen_max[1] = eigen_differences[1];
-      for(q in 2:Q){
-        eigen_max[q] = max(eigen_differences[2:q]);
+      for(d in 2:D){
+        eigen_max[d] = max(eigen_differences[2:d]);
       }
     }
     {
       relative_min[1] = eigen_differences[1];
-      for(q in 2:Q){
-        relative_min[q] = min(eigen_differences[1:q]);
+      for(d in 2:D){
+        relative_min[d] = min(eigen_differences[1:D]);
       }
     }
 
     {
-        matrix[D, Q] U = orthogonal_matrix(D, Q, v);
+        matrix[D, D] U = orthogonal_matrix(D, D, v);
         matrix[D, D] K;
 
         W = U*diag_matrix(eigen_roots_corrected);
@@ -154,22 +152,27 @@ transformed parameters{
         }
         L = cholesky_decompose(K);
     }
-    print("The estimated singular values:", eigen_roots);
-    print("The estimated maximum eigen gaps", eigen_max);
-    print("The estimated minimum eigen gaps", relative_min);
-    print("The estimated column variances for view 1", column_variance_2);
-    print("The estimated column variances for view 2", column_variance_1);
-    print("The estimated global column variances", column_tau[1:(K_1 + K_2)]);
+    {
+      for(i in 1:N){
+        mu[i] = B*X[i];
+      }
+    }
+    print("The estimated singular values: ", eigen_roots_corrected);
+    print("The estimated maximum eigen gaps: ", eigen_max);
+    print("The estimated minimum eigen gaps: ", relative_min);
+    print("The estimated local column variances: ")
+    print("The estimated global column variances: ", column_tau[1:(K_1 + K_2)]);
+    print("The estimated noise variances: ", tau_1, " ", tau_2)
 }
 model{
-    tau_1 ~ cauchy(0,1);
-    tau_2 ~ cauchy(0,1);
+    tau_1 ~ exponential(30);
+    tau_2 ~ exponential(30);
     column_tau ~ cauchy(0,1);
     column_view_alpha ~ beta(.005,.005);
     column_view_lambda ~ beta(column_view_alpha, column_view_beta);
     eigen_variance ~ cauchy(0,1);
-    for(q in 1:Q){
-      local_eigen_variance[q] ~ beta(max(eigen_differences[1:q]), min(eigen_differences[1:q]));
+    for(d in 1:D){
+      local_eigen_variance[d] ~ beta(max(eigen_differences[1:d])/min(eigen_differences[1:d]), min(eigen_differences[1:d])/max(eigen_differences[1:d]));
     }
     for(d in 1:(D_1 + D_2)){
       for(k in 1:(K_1 + K_2)){
@@ -185,16 +188,16 @@ model{
     v ~ normal(0,1);
 
     //prior on singular values
-    eigen_roots_corrected[1] ~ exponential(10);
+    eigen_roots_corrected[1] ~ uniform(0,100);
     for(q in 2:Q){
-      eigen_roots_corrected[q] ~ normal(0, eigen_variance*local_eigen_variance[q - 1]);
+      eigen_roots_corrected[q] ~ normal(0, local_eigen_variance[q - 1]/eigen_variance);
     }
     target += sum(2*log(eigen_roots));
     
     for(i in 1:N){
       X[i] ~ multi_normal(rep_vector(0, K_1 + K_2),diag_matrix(rep_vector(1,K_1 + K_2)));
-      Y[i] ~ multi_normal_cholesky(B*X[i], L);
     }
+    Y ~ multi_normal_cholesky(mu, L);
 }
 generated quantities {
     matrix[D, Q] U_n = orthogonal_matrix(D, Q, v);

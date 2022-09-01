@@ -11,7 +11,7 @@ require(mvtnorm) # This will be used for generating multivariate normal observat
 # Generating the eigenvalues:
 
 eigenvalue.simulator <- function(dims, alpha, beta){
-  eigenvalues.simulated <- -sort(-rgamma(dims, shape = alpha, rate = beta))
+  eigenvalues.simulated <- sort(-1/sort(-rgamma(dims, shape = alpha, rate = beta)), decreasing = T)
   return(eigenvalues.simulated)
 }
 
@@ -36,7 +36,7 @@ eigenvalue.simulator.sparse <- function(eigenvalues,percent){
   eigen.min <- min(eigenvalues)
   number.to.shrink <- floor(percent*length(eigenvalues))
   eigenvalues.shrunk <- eigenvalues
-  eigenvalues.shrunk[(length(eigenvalues) - number.to.shrink): length(eigenvalues)] <- eigenvalues.shrunk[(length(eigenvalues) - number.to.shrink): length(eigenvalues)]*runif(1, min = 0, max = min(eigenvalues))
+  eigenvalues.shrunk[(length(eigenvalues) - number.to.shrink): length(eigenvalues)] <- eigenvalues.shrunk[(length(eigenvalues) - number.to.shrink): length(eigenvalues)]*runif(1, min = 0, min(eigenvalues)/10)
   return(eigenvalues.shrunk)
 }
 
@@ -63,12 +63,12 @@ view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data
   for(j in 1:(view1.dim + view2.dim)){
     if(j <= view1.dim){
       for(i in 1:data1.dim){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
+        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = 1/column.variances[j])
       }
     }
-    else if(j >= view1.dim){
+    else if(j > view1.dim){
       for(i in (data1.dim + 1):(data1.dim + data2.dim)){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
+        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = 1/column.variances[j])
       }
     }
     for(i in 1:(data1.dim + data2.dim)){
@@ -80,15 +80,13 @@ view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data
       }
     }
   }
-  print(c("The view-specific loading matrix is", generated.matrix))
-
   return(generated.matrix)
 }
 
-noise.covariance.generator <- function(data1.dim, data2.dim, alpha, beta){
+noise.covariance.generator <- function(data1.dim, data2.dim, shared.noise.1, shared.noise.2){
   covariance.noise <- matrix(0, nrow = data1.dim + data2.dim, ncol = data1.dim + data2.dim)
-  noise.1 <- rgamma(1, shape = alpha, rate = beta)
-  noise.2 <- rgamma(1, shape = alpha, rate = beta)
+  noise.1 <- shared.noise.1
+  noise.2 <- shared.noise.2
   for(i in 1:data1.dim){
     covariance.noise[i,i] <- noise.1
   }
@@ -99,37 +97,18 @@ noise.covariance.generator <- function(data1.dim, data2.dim, alpha, beta){
 }
 
 
-# Data Generation
-
-K.true = c(4,15,30) # True dimensionality of the shared latent variable (number of non-zero eigenvalues)
-
-Kv.1.true = c(2,4,10,15,40) # True dimensionality of the latent variable for view-specific variation (will be interpreted )
-
-Kv.2.true = c(6,10,13,21,52)
-
-# As an example line of code for generating the shared covariance:
-
-shared.covariance.generator(data.dim = 1000, shared.dim = K.true, alpha = 1, beta = 1, percent = .7)
-
-
-# And an example line of code for generating the view-specific loading matrix:
-
-view.specific.matrix.generator(view1.dim = 7, view2.dim = 10, data1.dim = 12, data2.dim = 15, variance.params = c(1,1))
-
-
-CCA.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.dim, view2.dim, shared.dim, alpha.noise, beta.noise, alpha.eigenvalue, beta.eigenvalue,
+CCA.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.dim, view2.dim, shared.dim, shared.noise.1, shared.noise.2, alpha.eigenvalue, beta.eigenvalue,
                                   column.loading.variance.parameters, percent){
   Y <- matrix(0, nrow = data1.dim + data2.dim, ncol = N.observations)
   prior.generated.eigenvalues <- eigenvalue.simulator(dims = data1.dim + data2.dim, alpha = alpha.eigenvalue, beta = beta.eigenvalue)
   generated.eigenvalues <- eigenvalue.simulator.sparse(eigenvalues = prior.generated.eigenvalues,  percent = percent)
   shared.covariance <- shared.covariance.generator.eigen(generated.eigenvalues)
-  noise.covariance <- noise.covariance.generator(data1.dim = data1.dim, data2.dim = data2.dim, alpha = alpha.noise, beta = beta.noise)
+  noise.covariance <- noise.covariance.generator(data1.dim = data1.dim, data2.dim = data2.dim, shared.noise.1 = shared.noise.1, shared.noise.2 = shared.noise.2)
   view.loading.matrix <- view.specific.matrix.generator(view1.dim = view1.dim, view2.dim = view2.dim, data1.dim = data1.dim, data2.dim = data2.dim, variance.params = column.loading.variance.parameters)
   for(j in 1:N.observations){
     z <- rmvnorm(1, mean = rep(0, view1.dim + view2.dim), sigma = diag(view1.dim + view2.dim))
-    Y[,j] <- rmvnorm(1, mean = view.loading.matrix%*%t(z), sigma = shared.covariance + noise.covariance)
+    Y[,j] <- t(rmvnorm(1, mean = view.loading.matrix%*%t(z), sigma = shared.covariance + noise.covariance))
   }
-  Y <- t(Y)
   generator.list <- list("eigenvalues" = generated.eigenvalues, "shared covariance" = shared.covariance, "noise covariance" = noise.covariance, "view loading matrix" = view.loading.matrix, "generated data" = Y)
   names(generator.list) <- c("eigenvalues", "shared covariance", "noise covariance", "view loading matrix", "generated data")
   return(generator.list)
@@ -138,11 +117,14 @@ CCA.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.di
 
 # An example line for generating the CCA dataset:
 
-CCA.dataset.generator(N.observations = 100, data1.dim = 10, data2.dim = 13, view1.dim = 3, view2.dim = 6, shared.dim = 23, alpha.noise = 1,
-                      beta.noise = 1, alpha.eigenvalue = 1, beta.eigenvalue = 1, column.loading.variance.parameters = c(1,1), percent = .7)
 
 
-
+CCA.dataset.generator(N.observations = 200, data1.dim = 5, data2.dim = 3,
+                      view1.dim = 2, view2.dim = 2, shared.dim = 8,
+                      shared.noise.1 = .01, shared.noise.2 = .02,
+                      alpha.eigenvalue = 1, beta.eigenvalue = 1,
+                      column.loading.variance.parameters = c(5,5),
+                      percent = .7)
 
 
 # Here I will begin the task of fitting the model from "Sparse Householder CCA" with Rstan:
@@ -153,22 +135,25 @@ library(rstan)
 
 
 set.seed(1234)
-Y <- (CCA.dataset.generator(N.observations = 300, data1.dim = 3, data2.dim = 4, view1.dim = 1, view2.dim = 2, shared.dim = 7, alpha.noise = 1,
-                             beta.noise = 1, alpha.eigenvalue = 3, beta.eigenvalue = 2, column.loading.variance.parameters = c(1,1), percent = .7))
-
+Y <- CCA.dataset.generator(N.observations = 200, data1.dim = 11, data2.dim = 6,
+                           view1.dim = 7, view2.dim = 3, shared.dim = 17,
+                           shared.noise.1 = .01, shared.noise.2 = .02,
+                           alpha.eigenvalue = 1, beta.eigenvalue = 1,
+                           column.loading.variance.parameters = c(5,5),
+                           percent = .7)
 simulation.data <- list(
-  N = nrow(Y[[5]]),
-  D_1 = 3,
-  D_2 = 4,
-  K_1 = 1,
-  K_2 = 2,
-  D = ncol(Y[[5]]),
-  Q = 7,
-  Y = Y[[5]]
+  N = ncol(Y[[5]]),
+  D_1 = 11,
+  D_2 = 6,
+  K_1 = 7,
+  K_2 = 3,
+  D = nrow(Y[[5]]),
+  Q = 17,
+  Y = t(Y[[5]])
 )
 
 
-file.CCA <- "C:/Users/qsimo/Documents/Code/RHouseholder/Sparse Householder CCA.stan"
+file.CCA <- "C:/Users/qsimo/Documents/Code/RHouseholder/Sparse householder CCA stuck.stan"
 
 
 
@@ -182,7 +167,7 @@ print(fit)
 
 
 
-file.CCA.laptop <- "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Sparse Householder CCA.stan"
+file.CCA.laptop <- "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Sparse householder CCA stuck.stan"
 
 fit.CCA.laptop <- stan_model(file.CCA.laptop)
 
