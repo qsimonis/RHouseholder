@@ -160,7 +160,7 @@ file.CCA <- "C:/Users/qsimo/Documents/Code/RHouseholder/Sparse householder CCA s
 fit.CCA <- stan_model(file.CCA)
 
 
-fit <- sampling(fit.CCA, data = simulation.data, chains = 1, iter = 1000, cores = parallel::detectCores())
+fit <- sampling(fit.CCA, data = simulation.data, chains = 1, iter = 10000, cores = parallel::detectCores())
 
 
 print(fit)

@@ -160,9 +160,9 @@ transformed parameters{
     print("The estimated singular values: ", eigen_roots_corrected);
     print("The estimated maximum eigen gaps: ", eigen_max);
     print("The estimated minimum eigen gaps: ", relative_min);
-    print("The estimated local column variances: ")
+    print("The estimated local column variances: ", column_view_lambda);
     print("The estimated global column variances: ", column_tau[1:(K_1 + K_2)]);
-    print("The estimated noise variances: ", tau_1, " ", tau_2)
+    print("The estimated noise variances: ", tau_1, " ", tau_2);
 }
 model{
     tau_1 ~ exponential(30);
