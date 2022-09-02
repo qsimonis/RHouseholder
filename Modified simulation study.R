@@ -55,20 +55,22 @@ shared.covariance.generator.eigen <- function(eigenvalues){
 # loading matrix with normal entries (with different covariance for each column), where the views
 # will be generated with a bernoulli.
 
+column.variance.generator <- function(view1.dim, view2.dim, variance.parameter1, variance.parameter2){
+  column.variances <- rgamma(view1.dim + view2.dim, shape = variance.parameter1, rate = variance.parameter2)
+}
 
 view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data2.dim,
-                                           variance.params){
+                                           column.variances){
   generated.matrix <- matrix(0, ncol = (view1.dim + view2.dim), nrow = (data1.dim + data2.dim))
-  column.variances <- rgamma(view1.dim + view2.dim, shape = variance.params[1], rate = variance.params[2])
   for(j in 1:(view1.dim + view2.dim)){
     if(j <= view1.dim){
       for(i in 1:data1.dim){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = 1/column.variances[j])
+        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
       }
     }
     else if(j > view1.dim){
       for(i in (data1.dim + 1):(data1.dim + data2.dim)){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = 1/column.variances[j])
+        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
       }
     }
     for(i in 1:(data1.dim + data2.dim)){
@@ -115,7 +117,82 @@ CCA.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.di
 }
 
 
+ARD.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.dim, view2.dim, shared.dim, shared.noise.1, shared.noise.2, variance.parameter.1, variance.parameter.2, 
+                                  percent){
+  Y <- matrix(0, nrow = data1.dim + data2.dim, ncol = N.observations)
+  generated.column.variances <- column.variance.generator(view1.dim = view1.dim, view2.dim = view2.dim, variance.parameter1 = variance.parameter.1, variance.parameter2 = variance.parameter.2 )
+  shared.covariance <- diag(data1.dim + data2.dim)
+  noise.covariance <- 0
+  view.loading.matrix <- view.specific.matrix.generator(view1.dim = view1.dim, view2.dim = view2.dim, data1.dim = data1.dim, data2.dim = data2.dim, column.variances = generated.column.variances)
+  for(j in 1:N.observations){
+    z <- rmvnorm(1, mean = rep(0, view1.dim + view2.dim), sigma = diag(view1.dim + view2.dim))
+    Y[,j] <- t(rmvnorm(1, mean = view.loading.matrix%*%t(z), sigma = shared.covariance + noise.covariance))
+  }
+  generator.list <- list("column variances" = generated.column.variances,
+                         "shared covariance" = shared.covariance,
+                         "noise covariance" = noise.covariance,
+                         "view loading matrix" = view.loading.matrix,
+                         "generated data" = Y)
+  
+  names(generator.list) <- c("column variances", "shared covariance", "noise covariance",
+                             "view loading matrix", "generated data")
+  return(generator.list)
+}
+
 # An example line for generating the CCA dataset:
+
+set.seed(1234)
+X <- ARD.dataset.generator(N.observations = 200, data1.dim = 7, data2.dim = 5,
+                      view1.dim = 4, view2.dim = 4, shared.dim = 8,
+                      shared.noise.1 = .01, shared.noise.2 = .02,
+                      variance.parameter.1 = 1, variance.parameter.2 = 1,
+                      percent = .7)
+
+simulation.ARD.data <- list(
+  N = ncol(X[[4]]),
+  D_1 = 7,
+  D_2 = 5,
+  K_1 = 4,
+  K_2 = 4,
+  D = nrow(X[[4]]),
+  Q = 8,
+  Y = t(X[[4]])
+)
+
+library(rstan)
+
+ARD.initial.list <- list(
+  column_view_lambda <- c(rep(x = .99, times = simulation.ARD.data[[4]]), rep(x = .01, times = simulation.ARD.data[[5]]))
+)
+names(ARD.initial.list) <- c("column_view_lambda")
+
+ARD.inits <- list(ARD.initial.list)
+
+names(ARD.inits) <- c("chain 1")
+
+file.ARD.laptop <- "D:/School/Projects/GitMCMCHouseholder/RHouseholder/ARD prior test.stan"
+
+fit.ARD.laptop <- stan(file = file.ARD.laptop, data = simulation.ARD.data,  iter = 15000, chains = 1, thin = 10)
+
+summary(fit.ARD.laptop, pars = c("partial_matrix"))$summary
+
+summary(fit.ARD.laptop, pars = c("column_tau"))$summary
+
+
+
+samples.ARD <- sampling(fit.ARD.laptop, data = simulation.ARD.data, init = ARD.inits, chains = 1)
+
+print(samples.ARD)
+
+
+
+
+x <- seq(from = 0, to = 5, by = .01)
+
+
+plot(x, dcauchy(x), type = "l")
+
+abline(v = 1/X$`column variances`)
 
 
 
@@ -179,7 +256,7 @@ print(samples.CCA)
 
 x <- seq(0,1, by = .01)
 
-plot(x,dbeta(x, shape1 = .01, shape2 = .01), type = "l")
+plot(x,dbeta(x, shape1 = .1, shape2 = .1), type = "l")
 
 
 x.2 <- seq(0,4, by = .01)
