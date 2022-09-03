@@ -61,18 +61,14 @@ column.variance.generator <- function(view1.dim, view2.dim, variance.parameter1,
 
 view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data2.dim,
                                            column.variances){
-  generated.matrix <- matrix(0, ncol = (view1.dim + view2.dim), nrow = (data1.dim + data2.dim))
-  for(j in 1:(view1.dim + view2.dim)){
-    if(j <= view1.dim){
-      for(i in 1:data1.dim){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
-      }
-    }
-    else if(j > view1.dim){
-      for(i in (data1.dim + 1):(data1.dim + data2.dim)){
-        generated.matrix[i,j] <- rnorm(1, mean = 0, sd = column.variances[j])
-      }
-    }
+  print(dim(rstiefel::rustiefel(m = data1.dim, R = view1.dim)))
+  print(dim(diag(column.variances[1:view1.dim])))
+  view1.matrix <- (rstiefel::rustiefel(m = data1.dim, R = view1.dim)) %*% diag(column.variances[1:view1.dim])
+  view2.matrix <- (rstiefel::rustiefel(m = data2.dim, R = view2.dim)) %*% diag(column.variances[(view1.dim + 1):
+                                                                                             (view1.dim + view2.dim)])
+  generated.matrix.1 <- cbind(view1.matrix, matrix(0,view2.dim, data1.dim))
+  generated.matrix.1 <- cbind(matrix(0,view1.dim, data2.dim), view2.matrix)
+  generated.matrix <- rbind(generated.matrix.1, generated.matrix.2)
     for(i in 1:(data1.dim + data2.dim)){
       if(i > data1.dim && j <= view1.dim){
         generated.matrix[i,j] = 0
@@ -81,9 +77,8 @@ view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data
         generated.matrix[i,j] = 0
       }
     }
-  }
   return(generated.matrix)
-}
+  }
 
 noise.covariance.generator <- function(data1.dim, data2.dim, shared.noise.1, shared.noise.2){
   covariance.noise <- matrix(0, nrow = data1.dim + data2.dim, ncol = data1.dim + data2.dim)
@@ -121,7 +116,7 @@ ARD.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.di
                                   percent){
   Y <- matrix(0, nrow = data1.dim + data2.dim, ncol = N.observations)
   generated.column.variances <- column.variance.generator(view1.dim = view1.dim, view2.dim = view2.dim, variance.parameter1 = variance.parameter.1, variance.parameter2 = variance.parameter.2 )
-  shared.covariance <- diag(data1.dim + data2.dim)
+  shared.covariance <- diag(.1, data1.dim + data2.dim)
   noise.covariance <- 0
   view.loading.matrix <- view.specific.matrix.generator(view1.dim = view1.dim, view2.dim = view2.dim, data1.dim = data1.dim, data2.dim = data2.dim, column.variances = generated.column.variances)
   for(j in 1:N.observations){
@@ -142,21 +137,21 @@ ARD.dataset.generator <- function(N.observations, data1.dim, data2.dim, view1.di
 # An example line for generating the CCA dataset:
 
 set.seed(1234)
-X <- ARD.dataset.generator(N.observations = 200, data1.dim = 7, data2.dim = 5,
-                      view1.dim = 4, view2.dim = 4, shared.dim = 8,
+X <- ARD.dataset.generator(N.observations = 200, data1.dim = 4, data2.dim = 3,
+                      view1.dim = 1, view2.dim = 1, shared.dim = 6,
                       shared.noise.1 = .01, shared.noise.2 = .02,
                       variance.parameter.1 = 1, variance.parameter.2 = 1,
                       percent = .7)
 
 simulation.ARD.data <- list(
-  N = ncol(X[[4]]),
-  D_1 = 7,
-  D_2 = 5,
-  K_1 = 4,
-  K_2 = 4,
-  D = nrow(X[[4]]),
-  Q = 8,
-  Y = t(X[[4]])
+  N = ncol(X[[5]]),
+  D_1 = 4,
+  D_2 = 3,
+  K_1 = 1,
+  K_2 = 1,
+  D = nrow(X[[5]]),
+  Q = 7,
+  Y = t(X[[5]])
 )
 
 library(rstan)
@@ -179,10 +174,19 @@ summary(fit.ARD.laptop, pars = c("partial_matrix"))$summary
 summary(fit.ARD.laptop, pars = c("column_tau"))$summary
 
 
+# Use this when running on desktop
 
-samples.ARD <- sampling(fit.ARD.laptop, data = simulation.ARD.data, init = ARD.inits, chains = 1)
+file.ARD.desktop <- "C:/Users/qsimo/Documents/Code/RHouseholder/ARD prior test.stan"
 
-print(samples.ARD)
+fit.ARD.desktop <- stan(file = file.ARD.desktop, data = simulation.ARD.data,  iter = 15000, chains = 1, thin = 10)
+
+summary(fit.ARD.desktop, pars = c("partial_matrix"))$summary
+
+summary(fit.ARD.desktop, pars = c("column_tau"))$summary
+
+summary(fit.ARD.desktop, pars = c("X"))$summary
+
+summary(fit.ARD.desktop, pars = c("B_1"))$summary
 
 
 
@@ -192,7 +196,7 @@ x <- seq(from = 0, to = 5, by = .01)
 
 plot(x, dcauchy(x), type = "l")
 
-abline(v = 1/X$`column variances`)
+abline(v = X$`column variances`)
 
 
 
