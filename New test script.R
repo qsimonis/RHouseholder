@@ -72,7 +72,7 @@ Y <- B%*%t(rmvnorm(n = n, mean = rep(0, ncol(B)), sigma = diag(ncol(B)))) +
 data = list(N=n, D=d, K=k, ones=1, 
             y=Y)
 
-set.seed(123)
+set.seed(1234)
 library(rstan)
 n = 300
 D1 = 4
@@ -82,12 +82,22 @@ K2 = 3
 k = K1 + K2
 d = D1 + D2
 
-init.init.list = list(sigma_weight = 4*sort(runif((d), min = 0, max = 1), decreasing = F),
-                      sigma = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F))
 
-init.list = list(init.init.list)
-names(init.init.list) = c("sigma_weight", "sigma")
-names(init.list) = c("chain 1")
+chain.1 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
+                      sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
+chain.2 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
+               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
+chain.3 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
+               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
+chain.4 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
+               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
+
+names(chain.1) = c("sigma_weight", "sigma")
+names(chain.2) = c("sigma_weight", "sigma")
+names(chain.3) = c("sigma_weight", "sigma")
+names(chain.4) = c("sigma_weight", "sigma")
+init.list = list(chain.1, chain.2, chain.3, chain.4)
+names(init.list) = c("chain 1","chain 2", "chain 3", "chain 4")
 
 Y.new <- view.matrix %*% t(rmvnorm(n = n, mean = rep(0, ncol(view.matrix)), sigma = diag(ncol(view.matrix)))) + 
   B%*%t(rmvnorm(n = n, mean = rep(0, ncol(B)), sigma = diag(ncol(B)))) + 
@@ -103,6 +113,60 @@ CCA.data <- list(
   K_2 = 3,
   Q = d
 )
+
+fit.householder.CCA.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/PPCA_House_Test_ARD_Extended.stan",
+                                    data = CCA.data, seed = 1111,
+                                    control = list(max_treedepth = 13, adapt_delta = .3),
+                                    init = init.list, iter = 1000,
+                                    thin = 10,
+                                    cores = parallel::detectCores())
+
+library("bayesplot")
+library("ggplot2")
+library("rstanarm")
+posterior.CCA <- as.array(fit.householder.CCA.desktop)
+color_scheme_set("red")
+mcmc_intervals(posterior.CCA, pars = c("sigma_new"))
+
+
+summary(fit.householder.CCA.desktop, pars = c("sigma"))$summary
+summary(fit.householder.CCA.desktop, pars = c("sigma_weight"))$summary
+summary(fit.householder.CCA.desktop, pars = c("sigma_new"))$summary
+summary(fit.householder.CCA.desktop, pars = c("view1_noise"))$summary
+summary(fit.householder.CCA.desktop, pars = c("view2_noise"))$summary
+summary(fit.householder.CCA.desktop, pars = c("view_matrix"))$summary
+
+
+
+
+library(ggplot2)
+
+MCMC.data.plot <- data.frame(summary(fit.householder.CCA.desktop, pars = c("sigma_new"))$summary)
+sigma_vec <- c("sigma_1","sigma_2", "sigma_3", "sigma_4", "sigma_5", "sigma_6", "sigma_7",
+               "sigma_8", "sigma_9", "sigma_10")
+MCMC.data.plot$id <- c(MCMC.data.plot$id, levels=sigma_vec)
+MCMC.data.plot$id <- factor(MCMC.data.plot$id, levels=sigma_vec)
+colors <- c("True Value" = "red")
+ggplot(MCMC.data.plot,aes(x=id)) +
+   geom_boxplot(aes(lower=mean-2*sd,upper=mean+2*sd,middle=mean,ymin=mean-3*sd,ymax=mean+3*sd),
+                stat="identity") + 
+  geom_point(data = data.frame(x = factor(sigma_vec, levels = sigma_vec), y = sort(sparse.eigenvalues,
+                                                                                   decreasing = F)),
+             aes(x=x, y=y,
+             color = "True Value")) +
+  labs(title="Estimated Singular Values",
+       x ="Index", y = "Estimated Value", color = "Legend") + 
+  scale_color_manual(values = colors)
+
+
+# ggplot code 
+ggplot(aes(y = percent, x = factor(sparse.eigenvalues)), data = mydata)+
+  ggtitle("Boxplot con media, 95%CI, valore min. e max.")+xlab("Singular Value")+ylab("Valori")+
+  stat_summary(fun.data = min.mean.sd.max, geom = "boxplot")+
+  geom_jitter(position=position_jitter(width=.2), size=3) 
+
+
+
 
 fit.householder.CCA <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/PPCA_House_Test_ARD_Extended.stan",
                             data = CCA.data, chains = 1, seed = 1234,
