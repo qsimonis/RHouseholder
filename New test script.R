@@ -74,7 +74,7 @@ data = list(N=n, D=d, K=k, ones=1,
 
 set.seed(123)
 library(rstan)
-n = 500
+n = 300
 D1 = 4
 D2 = 6
 K1 = 2
@@ -106,7 +106,7 @@ CCA.data <- list(
 
 fit.householder.CCA <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/PPCA_House_Test_ARD_Extended.stan",
                             data = CCA.data, chains = 1, seed = 1234,
-                            control = list(max_treedepth = 14),
+                            control = list(max_treedepth = 12),
                             init = init.list, iter = 300)
 
 summary(fit.householder.CCA, pars = c("sigma"))$summary
