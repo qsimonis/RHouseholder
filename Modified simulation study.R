@@ -11,7 +11,7 @@ require(mvtnorm) # This will be used for generating multivariate normal observat
 # Generating the eigenvalues:
 
 eigenvalue.simulator <- function(dims, alpha, beta){
-  eigenvalues.simulated <- sort(-1/sort(-rgamma(dims, shape = alpha, rate = beta)), decreasing = T)
+  eigenvalues.simulated <- sort(rgamma(dims, shape = alpha, rate = beta), decreasing = T)
   return(eigenvalues.simulated)
 }
 
@@ -59,24 +59,18 @@ column.variance.generator <- function(view1.dim, view2.dim, variance.parameter1,
   column.variances <- rgamma(view1.dim + view2.dim, shape = variance.parameter1, rate = variance.parameter2)
 }
 
+
+
+
 view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data2.dim,
                                            column.variances){
-  print(dim(rstiefel::rustiefel(m = data1.dim, R = view1.dim)))
-  print(dim(diag(column.variances[1:view1.dim])))
-  view1.matrix <- (rstiefel::rustiefel(m = data1.dim, R = view1.dim)) %*% diag(column.variances[1:view1.dim])
-  view2.matrix <- (rstiefel::rustiefel(m = data2.dim, R = view2.dim)) %*% diag(column.variances[(view1.dim + 1):
-                                                                                             (view1.dim + view2.dim)])
-  generated.matrix.1 <- cbind(view1.matrix, matrix(0,view2.dim, data1.dim))
-  generated.matrix.1 <- cbind(matrix(0,view1.dim, data2.dim), view2.matrix)
+  require(rstiefel)
+  view1.matrix <- rustiefel(data1.dim, view1.dim)%*% diag(x = column.variances[1:view1.dim], nrow = view1.dim)
+  view2.matrix <- rustiefel(data2.dim, view2.dim) %*% diag(x = column.variances[(view1.dim + 1):
+                                                                                             (view1.dim + view2.dim)], nrow = view2.dim)
+  generated.matrix.1 <- cbind(view1.matrix, matrix(0,nrow = data1.dim, ncol = view1.dim ))
+  generated.matrix.2 <- cbind(matrix(0,nrow = data2.dim, ncol = view1.dim), view2.matrix)
   generated.matrix <- rbind(generated.matrix.1, generated.matrix.2)
-    for(i in 1:(data1.dim + data2.dim)){
-      if(i > data1.dim && j <= view1.dim){
-        generated.matrix[i,j] = 0
-      }
-      else if(i <= data1.dim && j > view1.dim){
-        generated.matrix[i,j] = 0
-      }
-    }
   return(generated.matrix)
   }
 
