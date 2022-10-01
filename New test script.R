@@ -2,14 +2,16 @@ require(rstiefel) # This will allow the easy generation of random rectangular or
 
 require(mvtnorm) # This will be used for generating multivariate normal observations for our artificial datasets
 
+require(extraDistr)
+
 eigenvalue.simulator <- function(dims, alpha, beta){
   eigenvalues.simulated <- sort(rgamma(dims, shape = alpha, rate = beta), decreasing = T)
   return(eigenvalues.simulated)
 }
 
-sparse.eigenvalue.simulator <- function(eigenvalues, proportion){
+sparse.eigenvalue.simulator <- function(eigenvalues, proportion, max){
   number.to.shrink <- floor(length(eigenvalues)*proportion) - 1
-  eigenvalues[(length(eigenvalues) - number.to.shrink):length(eigenvalues)] <- sort(runif( n = number.to.shrink + 1, min = 0, max = min(eigenvalues)), decreasing = T)
+  eigenvalues[(length(eigenvalues) - number.to.shrink):length(eigenvalues)] <- .3*sort(runif( n = number.to.shrink + 1, min = 0, max = max), decreasing = T)
   return(eigenvalues)
 }
 
@@ -33,7 +35,7 @@ noise.covariance.generator <- function(data1.dim, data2.dim, shared.noise.1, sha
 }
 
 column.variance.generator <- function(view1.dim, view2.dim){
-  column.variances <- runif(view1.dim + view2.dim, 0,1)
+  column.variances <- rhcauchy(view1.dim + view2.dim)
   return(column.variances)
 }
 
@@ -56,13 +58,13 @@ view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data
   return(view.matrix)
 }
 
-set.seed(123)
+set.seed(12104)
 
-shared.eigenvalues <- eigenvalue.simulator(dims = 10, alpha = 2, beta = 1)
-sparse.eigenvalues <- sparse.eigenvalue.simulator(eigenvalues = shared.eigenvalues, proportion = .5)
+shared.eigenvalues <- eigenvalue.simulator(dims = 10, alpha = 1.75, beta = 1)
+sparse.eigenvalues <- sparse.eigenvalue.simulator(eigenvalues = shared.eigenvalues, proportion = .5, max = .1)
 B <- shared.covariance.generator.eigen(sparse.eigenvalues)
-view.noise <- noise.covariance.generator(data1.dim = 4, data2.dim = 6, shared.noise.1 = 1, shared.noise.2 = 1.1)
-column.variances <- column.variance.generator(view1.dim = 2, view2.dim = 3)
+view.noise <- noise.covariance.generator(data1.dim = 4, data2.dim = 6, shared.noise.1 = .3, shared.noise.2 = .5)
+column.variances <- sort(column.variance.generator(view1.dim = 2, view2.dim = 3), decreasing = F)
 view.matrix <- view.specific.matrix.generator(view1.dim = 2, view2.dim = 3, data1.dim = 4, data2.dim = 6, column.variances = column.variances)
 
 Y <- B%*%t(rmvnorm(n = n, mean = rep(0, ncol(B)), sigma = diag(ncol(B)))) + 
@@ -72,7 +74,7 @@ Y <- B%*%t(rmvnorm(n = n, mean = rep(0, ncol(B)), sigma = diag(ncol(B)))) +
 data = list(N=n, D=d, K=k, ones=1, 
             y=Y)
 
-set.seed(1234)
+
 library(rstan)
 n = 300
 D1 = 4
@@ -82,20 +84,30 @@ K2 = 3
 k = K1 + K2
 d = D1 + D2
 
-
+max.eigen = max(sparse.eigenvalues)
+uni.max = max.eigen + runif(1, min = -.3, max = .3)
+set.seed(4333213)
 chain.1 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
-                      sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
-chain.2 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
-               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
-chain.3 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
-               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
-chain.4 = list(sigma_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = F),
-               sigma = 4*sort(runif((d), min = 0, max = 1), decreasing = F))
+                      sigma = sort(c(runif(d/2 , min = 0, max = 1),
+                                     uni.max*runif(d/2 , min = .25 , max = 1)), decreasing = F),
+               column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
+chain.2 = list(sigma_weight = chain.1$sigma_weight,
+               sigma = sort(chain.1$sigma + runif(d, min = - min(chain.1$sigma), max = .5), decreasing = F),
+               column.variances = sort(chain.1$column.variances + runif(K1 + K2, min = - min(chain.1$column.variances), max = .25),
+                                    decreasing = F))
+chain.3 = list(sigma_weight = chain.1$sigma_weight,
+               sigma = sort(chain.1$sigma + runif(d, min = - min(chain.1$sigma), max = .5), decreasing = F),
+               column.variances = sort(chain.1$column.variances + runif(K1 + K2, min = - min(chain.1$column.variances), max = .25),
+                                       decreasing = F))
+chain.4 = list(sigma_weight = chain.1$sigma_weight,
+               sigma = sort(chain.1$sigma + runif(d, min = - min(chain.1$sigma), max = .5), decreasing = F),
+               column.variances = sort(chain.1$column.variances + runif(K1 + K2, min = - min(chain.1$column.variances), max = .25),
+                                       decreasing = F))
 
-names(chain.1) = c("sigma_weight", "sigma")
-names(chain.2) = c("sigma_weight", "sigma")
-names(chain.3) = c("sigma_weight", "sigma")
-names(chain.4) = c("sigma_weight", "sigma")
+names(chain.1) = c("sigma_weight", "sigma", "column_variances")
+names(chain.2) = c("sigma_weight", "sigma", "column_variances")
+names(chain.3) = c("sigma_weight", "sigma", "column_variances")
+names(chain.4) = c("sigma_weight", "sigma", "column_variances")
 init.list = list(chain.1, chain.2, chain.3, chain.4)
 names(init.list) = c("chain 1","chain 2", "chain 3", "chain 4")
 
@@ -114,8 +126,11 @@ CCA.data <- list(
   Q = d
 )
 
+sparse.eigenvalues
+column.variances
+
 fit.householder.CCA.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/PPCA_House_Test_ARD_Extended.stan",
-                                    data = CCA.data, seed = 1111,
+                                    data = CCA.data, seed = 4,
                                     control = list(max_treedepth = 13, adapt_delta = .3),
                                     init = init.list, iter = 1000,
                                     thin = 10,
@@ -135,6 +150,7 @@ summary(fit.householder.CCA.desktop, pars = c("sigma_new"))$summary
 summary(fit.householder.CCA.desktop, pars = c("view1_noise"))$summary
 summary(fit.householder.CCA.desktop, pars = c("view2_noise"))$summary
 summary(fit.householder.CCA.desktop, pars = c("view_matrix"))$summary
+summary(fit.householder.CCA.desktop, pars = c("column_variances"))$summary
 
 
 
@@ -148,7 +164,7 @@ MCMC.data.plot$id <- c(MCMC.data.plot$id, levels=sigma_vec)
 MCMC.data.plot$id <- factor(MCMC.data.plot$id, levels=sigma_vec)
 colors <- c("True Value" = "red")
 ggplot(MCMC.data.plot,aes(x=id)) +
-   geom_boxplot(aes(lower=mean-2*sd,upper=mean+2*sd,middle=mean,ymin=mean-3*sd,ymax=mean+3*sd),
+   geom_boxplot(aes(lower=mean -2*sd,upper=mean +2*sd,middle=mean ,ymin=mean - 3*sd,ymax=mean +3*sd),
                 stat="identity") + 
   geom_point(data = data.frame(x = factor(sigma_vec, levels = sigma_vec), y = sort(sparse.eigenvalues,
                                                                                    decreasing = F)),
@@ -156,8 +172,8 @@ ggplot(MCMC.data.plot,aes(x=id)) +
              color = "True Value")) +
   labs(title="Estimated Singular Values",
        x ="Index", y = "Estimated Value", color = "Legend") + 
-  scale_color_manual(values = colors)
-
+  scale_color_manual(values = colors) +
+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # ggplot code 
 ggplot(aes(y = percent, x = factor(sparse.eigenvalues)), data = mydata)+

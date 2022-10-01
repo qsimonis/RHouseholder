@@ -70,15 +70,15 @@ parameters{
     vector[D*Q - Q*(Q-1)/2] v;
     positive_ordered[Q] sigma;
     positive_ordered[Q] sigma_weight;
-    real<lower = 0> weight_variance;
+    positive_ordered[Q] weight_vector;
+    positive_ordered[Q] local_weight_variance;
+    real<lower = 0> global_weight_variance;
     real<lower=0> sigma_noise;
     real<lower = 0> view1_noise;
     real<lower = 0> view2_noise;
     vector[D_1*K_1 + D_2*K_2] view_vector;
     vector[K_1 + K_2] X[N];
-    vector<lower = 0>[K_1 + K_2] column_variances;
-    real<lower = 0> view1_noise_hyperprior;
-    real<lower = 0> view2_noise_hyperprior;
+    positive_ordered[K_1 + K_2] column_variances;
 }
 transformed parameters{
     matrix[D, Q] W;
@@ -86,6 +86,7 @@ transformed parameters{
     positive_ordered[Q] sigma_new;
     matrix[D, K_1 + K_2] view_matrix;
     vector[D] mu[N];
+    positive_ordered[Q] weight_variance;
     
     {
       for(j in 1:(K_1 + K_2)){
@@ -106,6 +107,13 @@ transformed parameters{
     {
       for(i in 1:Q){
         sigma_new[i] = sigma[i]*sigma_weight[i];
+      }
+    }
+    
+    
+    {
+      for(i in 1:Q){
+        weight_variance[i] = global_weight_variance*weight_vector[i];
       }
     }
     
@@ -130,20 +138,20 @@ transformed parameters{
       mu[i] = view_matrix*X[i];
     }
     
-    print("Estimated eigenvalues: ", sigma);
-    print("Estimated weights: ", sigma_weight);
+    print("Estimated adjusted eigenvalues: ", sigma_new);
+    print("Estimated column variances: ", column_variances);
 }
 model{
-    view1_noise ~ cauchy(0,view1_noise_hyperprior);
-    view2_noise ~ cauchy(0,view2_noise_hyperprior);
-    view1_noise_hyperprior ~ cauchy(0,1);
-    view2_noise_hyperprior ~ cauchy(0,1);
+    view1_noise ~ cauchy(0,.4);
+    view2_noise ~ cauchy(0,.4);
     
     
-    weight_variance ~ cauchy(0,1);
     for(i in 1:Q){
-      sigma_weight[i] ~ cauchy(0,weight_variance);
+      sigma_weight[i] ~ cauchy(0,weight_variance[i]);
+      weight_vector[i] ~ cauchy(0,local_weight_variance[i]);
+      local_weight_variance[i] ~ cauchy(0,1);
     }
+    global_weight_variance ~ cauchy(0,1);
     
     
     v ~ normal(0,1);
@@ -161,10 +169,10 @@ model{
     
     for(i in 1:D){
       for(j in 1:(K_1 + K_2)){
-        if(i <= D_1 || j <= K_1){
+        if(i <= D_1 && j <= K_1){
           view_vector[i*j] ~ normal(0,column_variances[j]);
         }
-        else{
+        else if(i > D_1 && j > K_1){
           view_vector[(i-D_1)*(j - K_1) + D_1*K_1] ~ normal(0, column_variances[j]);
         }
       }
