@@ -70,7 +70,7 @@ parameters{
     vector[D*Q - Q*(Q-1)/2] v;
     positive_ordered[Q] sigma;
     positive_ordered[Q] sigma_weight;
-    positive_ordered[Q] weight_vector;
+    positive_ordered[Q] local_weight_vector;
     positive_ordered[Q] local_weight_variance;
     real<lower = 0> global_weight_variance;
     real<lower=0> sigma_noise;
@@ -113,7 +113,7 @@ transformed parameters{
     
     {
       for(i in 1:Q){
-        weight_variance[i] = global_weight_variance*weight_vector[i];
+        weight_variance[i] = global_weight_variance*local_weight_vector[i];
       }
     }
     
@@ -139,7 +139,8 @@ transformed parameters{
     }
     
     print("Estimated adjusted eigenvalues: ", sigma_new);
-    print("Estimated column variances: ", column_variances);
+    print("Estimated global weight variance: ", global_weight_variance);
+    print("Estimated local weight variances: ", local_weight_variance);
 }
 model{
     view1_noise ~ cauchy(0,.4);
@@ -148,7 +149,7 @@ model{
     
     for(i in 1:Q){
       sigma_weight[i] ~ cauchy(0,weight_variance[i]);
-      weight_vector[i] ~ cauchy(0,local_weight_variance[i]);
+      local_weight_vector[i] ~ cauchy(0,local_weight_variance[i]);
       local_weight_variance[i] ~ cauchy(0,1);
     }
     global_weight_variance ~ cauchy(0,1);
