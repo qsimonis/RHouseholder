@@ -297,37 +297,73 @@ CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
 library(rstan)
 library(extraDistr)
 n = 300
-D1 = 4
-D2 = 6
-K1 = 2
-K2 = 3
+D1 = 10
+D2 = 8
+K1 = 5
+K2 = 6
 k = K1 + K2
 d = D1 + D2
 
-Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = 2, K2 = 3)
+Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2)
 
 CCA.data <- list(
   N = n,
   Y = t(Generated.data$'generated data'),
   D = d,
-  D_1 = 4,
-  D_2 = 6,
-  K_1 = 2,
-  K_2 = 3,
+  D_1 = D1,
+  D_2 = D2,
+  K_1 = K1,
+  K_2 = K2,
   Q = d
 )
 
 set.seed(4333213)
-uni.max = 25
-chain.1 = list(eigen_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = T)*sort(rgamma((d), shape = 1, rate = 1), decreasing = T),
-               wishart_eigenvalues = sort(c(runif(d/2 , min = 0, max = 1),
+uni.max = max(Generated.data$`sparse shared eigenvalues`) + runif(1, min = 0, max = max(Generated.data$`sparse shared eigenvalues`)/10)
+chain.1 = list(eigen_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = T),
+               eigen_roots = sort(c(runif(d/2 , min = 0, max = 1),
                               uni.max*runif(d/2 , min = .25 , max = 1)), decreasing = T),
                column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
 
-names(chain.1) = c("eigen_weight", "wishart_eigenvalues", "column_variances")
+names(chain.1) = c("eigen_weight", "eigen_roots_corrected", "column_variances")
 
 
 fit.householder <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
 
+fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
+
+summary(fit.householder.desktop, pars = c("eigen_roots"))$summary
+summary(fit.householder.desktop, pars = c("eigen_differences"))$summary
+summary(fit.householder.desktop, pars = c("local_eigen_variance"))$summary
+summary(fit.householder.desktop, pars = c("eigen_variance"))$summary
+summary(fit.householder.desktop, pars = c("weighted_eigen_variance"))$summary
+
+
+plot(summary(fit.householder.desktop, pars = c("eigen_roots")))
+
+
+
+
+
+
+
+for(q in 1:Q){
+  eigen_differences_corrected[q] = eigen_differences[Q - q + 1];
+}
+
+eigen_roots[1] = exp(eigen_differences_corrected[1]);
+
+{
+  for(i in 2:Q){
+    eigen_roots[i] = exp(eigen_differences_corrected[1] - sum(eigen_differences_corrected[2:i]));
+  }
+}
+
+for(q in 1:Q){
+  local_eigen_variance_corrected[q] = local_eigen_variance[Q - q + 1];
+}
+
+for(q in 1:Q){
+  weighted_eigen_variance[q] = eigen_variance*local_eigen_variance[q];
+}
 
 

@@ -68,8 +68,8 @@ data{
 parameters{
     //vector[D*(D+1)/2 + D] v;
     vector[D*Q - Q*(Q-1)/2] v;
-    positive_ordered[Q] eigen_differences;
-    positive_ordered[Q] eigen_weight;
+    vector<lower = 0>[Q] eigen_differences;
+    positive_ordered[Q-1] local_eigen_variance;
     real<lower = 0> tau_1;
     real<lower = 0> tau_2;
     real<lower = 0> eigen_variance;
@@ -86,29 +86,21 @@ transformed parameters{
     vector[Q] eigen_roots;
     vector[Q] eigen_max;
     vector[Q] eigen_min;
-    vector[Q] weighted_eigen;
-    vector[Q] corrected_eigen;
-    vector[Q] eigen_weight_corrected;
+    vector[Q-1] weighted_eigen_variance;
     
     eigen_roots[1] = exp(eigen_differences[1]);
     
     {
-      for(i in 1:Q){
+      for(i in 2:Q){
         eigen_roots[i] = exp(eigen_differences[1] - sum(eigen_differences[2:i]));
       }
     }
     
-    for(q in 1:Q){
-      eigen_weight_corrected[q] = eigen_weight[Q - q + 1];
+    
+    for(q in 2:Q){
+      weighted_eigen_variance[q-1] = eigen_variance*local_eigen_variance[q-1];
     }
     
-    for(q in 1:Q){
-      weighted_eigen[q] = eigen_weight_corrected[q]*eigen_roots[q];
-    }
-    
-    for(q in 1:Q){
-      corrected_eigen[q] = weighted_eigen[Q - q + 1];
-    }
     
     
     {
@@ -157,9 +149,8 @@ transformed parameters{
         }
         L = cholesky_decompose(K);
     }
-    print("Estimated weighted eigenvalues: ", weighted_eigen);
-    print("Estimated unweighted eigenvalues: ", eigen_roots);
-    print("Estimated eigenweights: ", eigen_weight_corrected);
+    print("Estimated weighted eigenvalues: ", eigen_roots);
+    print("Estimated local variance: ", local_eigen_variance);
 }
 model{
     tau_1 ~ cauchy(0,1);
@@ -167,13 +158,13 @@ model{
     eigen_variance ~ cauchy(0,1);
     
     
-    eigen_differences[1] ~ normal(50,10);
+    eigen_differences[1] ~ normal(60,1);
     for(q in 2:Q){
-      eigen_differences[q] ~ normal(0, eigen_variance);
+      eigen_differences[q] ~ normal(0, weighted_eigen_variance[q - 1]);
     }
     
-    for(q in 1:Q){
-      eigen_weight[q] ~ inv_gamma(eigen_max[q], eigen_min[q]);
+    for(q in 2:Q){
+      local_eigen_variance[q-1] ~ inv_gamma(eigen_min[q],eigen_max[q]);
     }
 
     for(j in 1:(K_1 + K_2)){
@@ -207,7 +198,7 @@ generated quantities {
         if (U_n[1,q] < 0){
             U_n[,q] = -U_n[,q];
         }
-    W_n = U_n*diag_matrix(corrected_eigen);
+    W_n = U_n*diag_matrix(eigen_roots);
 }
 
 
