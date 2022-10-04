@@ -208,4 +208,126 @@ summary(fit.householder, pars = c("W"))$summary
 
 
 
+###### Starting a new test script at the bottom here
+
+#This function  will generate a matrix with random normal entries
+
+wishart.matrix.generator <- function(n.row, n.col){
+  generated.matrix <- matrix(0, nrow = n.row, ncol = n.col)
+  for(i in 1:nrow(generated.matrix)){
+    for(j in 1:ncol(generated.matrix)){
+      generated.matrix[i,j] = rnorm(1)
+    }
+  }
+  return(generated.matrix %*% t(generated.matrix))
+}
+
+sparse.eigenvalue.simulator <- function(eigenvalues, proportion, max, shrinkage){
+  number.to.shrink <- floor(length(eigenvalues)*proportion) - 1
+  eigenvalues[(length(eigenvalues) - number.to.shrink):length(eigenvalues)] <- shrinkage*sort(runif( n = number.to.shrink + 1, min = 0, max = max), decreasing = T)
+  return(eigenvalues)
+}
+
+shared.covariance.generator.eigen <- function(eigenvalues){
+  Generated.orthogonal.matrix <-  rstiefel::rustiefel(m = length(eigenvalues), R = length(eigenvalues))
+  Generated.covariance <- Generated.orthogonal.matrix%*%diag(eigenvalues)
+  return(Generated.covariance)
+}
+
+noise.covariance.generator <- function(data1.dim, data2.dim, shared.noise.1, shared.noise.2){
+  covariance.noise <- matrix(0, nrow = data1.dim + data2.dim, ncol = data1.dim + data2.dim)
+  noise.1 <- shared.noise.1
+  noise.2 <- shared.noise.2
+  for(i in 1:data1.dim){
+    covariance.noise[i,i] <- noise.1
+  }
+  for(i in (data1.dim + 1):(data1.dim + data2.dim)){
+    covariance.noise[i,i] <- noise.2
+  }
+  return(covariance.noise)
+}
+
+column.variance.generator <- function(view1.dim, view2.dim){
+  column.variances <- extraDistr::rhcauchy(view1.dim + view2.dim)
+  return(column.variances)
+}
+
+view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data2.dim,
+                                           column.variances){
+  require(mvtnorm)
+  view.matrix <- matrix(0, nrow = data1.dim + data2.dim, ncol = view1.dim + view2.dim)
+  for(j in 1:(view1.dim + view2.dim)){
+    view.matrix[,j] <- as.vector(rmvnorm(1, mean = rep(0, data1.dim + data2.dim),
+                                         sigma = diag(rep(column.variances[j], data1.dim + data2.dim), nrow = data1.dim + data2.dim)))
+    for(i in 1:(data1.dim + data2.dim)){
+      if(i > data1.dim && j <= view1.dim){
+        view.matrix[i,j] = 0
+      }
+      else if(i <= data1.dim && j > view1.dim){
+        view.matrix[i,j] = 0
+      }
+    }
+  }
+  return(view.matrix)
+}
+
+CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
+  k = K1 + K2
+  d = D1 + D2
+  view.specific.column.variances <- column.variance.generator(K1, K2)
+  view.specific.matrix <- view.specific.matrix.generator(view1.dim = K1, view2.dim = K2,
+                                                         data1.dim = D1, data2.dim = D2,
+                                                         column.variances = view.specific.column.variances)
+  wishart.matrix <- wishart.matrix.generator(n.row = d, n.col = d)
+  wishart.eigenvalues <- eigen(wishart.matrix)$values
+  sparse.wishart.eigenvalues <- sparse.eigenvalue.simulator(wishart.eigenvalues, proportion = .5, max = 1, shrinkage = .5)
+  shared.matrix <- shared.covariance.generator.eigen(sqrt(sparse.wishart.eigenvalues))
+  view.noise <- noise.covariance.generator(data1.dim = D1, data2.dim = D2, shared.noise.1 = .3, shared.noise.2 = .5)
+  generated.data <- view.specific.matrix %*% t(rmvnorm(n = n, mean = rep(0, ncol(view.specific.matrix)), sigma = diag(ncol(view.specific.matrix)))) + 
+    shared.matrix%*%t(rmvnorm(n = n, mean = rep(0, ncol(shared.matrix)), sigma = diag(ncol(shared.matrix)))) + 
+    t(rmvnorm(n = n, mean = rep(0, ncol(shared.matrix)), sigma = diag(ncol(shared.matrix)) + view.noise))
+  
+  CCA.list <- list(view.specific.column.variances, view.specific.matrix, wishart.eigenvalues,
+                   sparse.wishart.eigenvalues, shared.matrix, generated.data)
+  names(CCA.list) = c("view specific column variances", "view matrix", "original shared eigenvalues",
+                      "sparse shared eigenvalues", "shared matrix", "generated data")
+  return(CCA.list)
+}
+  
+library(rstan)
+library(extraDistr)
+n = 300
+D1 = 4
+D2 = 6
+K1 = 2
+K2 = 3
+k = K1 + K2
+d = D1 + D2
+
+Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = 2, K2 = 3)
+
+CCA.data <- list(
+  N = n,
+  Y = t(Generated.data$'generated data'),
+  D = d,
+  D_1 = 4,
+  D_2 = 6,
+  K_1 = 2,
+  K_2 = 3,
+  Q = d
+)
+
+set.seed(4333213)
+uni.max = 25
+chain.1 = list(eigen_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreasing = T)*sort(rgamma((d), shape = 1, rate = 1), decreasing = T),
+               wishart_eigenvalues = sort(c(runif(d/2 , min = 0, max = 1),
+                              uni.max*runif(d/2 , min = .25 , max = 1)), decreasing = T),
+               column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
+
+names(chain.1) = c("eigen_weight", "wishart_eigenvalues", "column_variances")
+
+
+fit.householder <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
+
+
 
