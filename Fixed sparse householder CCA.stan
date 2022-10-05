@@ -69,7 +69,7 @@ parameters{
     //vector[D*(D+1)/2 + D] v;
     vector[D*Q - Q*(Q-1)/2] v;
     vector<lower = 0>[Q] eigen_differences;
-    positive_ordered[Q-1] local_eigen_variance;
+    vector<lower = 0>[Q] local_eigen_variance;
     real<lower = 0> tau_1;
     real<lower = 0> tau_2;
     real<lower = 0> eigen_variance;
@@ -86,7 +86,7 @@ transformed parameters{
     vector[Q] eigen_roots;
     vector[Q] eigen_max;
     vector[Q] eigen_min;
-    vector[Q-1] weighted_eigen_variance;
+    vector[Q] weighted_eigen_variance;
     
     eigen_roots[1] = exp(eigen_differences[1]);
     
@@ -97,8 +97,8 @@ transformed parameters{
     }
     
     
-    for(q in 2:Q){
-      weighted_eigen_variance[q-1] = eigen_variance*local_eigen_variance[q-1];
+    for(q in 1:Q){
+      weighted_eigen_variance[q] = eigen_variance*local_eigen_variance[q];
     }
     
     
@@ -155,7 +155,7 @@ transformed parameters{
 model{
     tau_1 ~ cauchy(0,1);
     tau_2 ~ cauchy(0,1);
-    eigen_variance ~ cauchy(0,1);
+    eigen_variance ~ normal(0,1);
     
     
     eigen_differences[1] ~ normal(60,1);
@@ -163,8 +163,8 @@ model{
       eigen_differences[q] ~ normal(0, weighted_eigen_variance[q - 1]);
     }
     
-    for(q in 2:Q){
-      local_eigen_variance[q-1] ~ inv_gamma(eigen_min[q],eigen_max[q]);
+    for(q in 1:Q){
+      local_eigen_variance[q] ~ inv_gamma(eigen_min[q],eigen_max[q]);
     }
 
     for(j in 1:(K_1 + K_2)){

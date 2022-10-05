@@ -331,8 +331,8 @@ fit.householder <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHousehold
 
 fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
 
-summary(fit.householder.desktop, pars = c("eigen_roots"))$summary
-summary(fit.householder.desktop, pars = c("eigen_differences"))$summary
+summary(fit.householder, pars = c("eigen_roots"))$summary
+summary(fit.householder, pars = c("eigen_differences"))$summary
 summary(fit.householder.desktop, pars = c("local_eigen_variance"))$summary
 summary(fit.householder.desktop, pars = c("eigen_variance"))$summary
 summary(fit.householder.desktop, pars = c("weighted_eigen_variance"))$summary
