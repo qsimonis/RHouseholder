@@ -96,9 +96,10 @@ transformed parameters{
       }
     }
     
-    
-    for(q in 1:Q){
-      weighted_eigen_variance[q] = eigen_variance*local_eigen_variance[q];
+    // Divided the weights by the previous eigen_differences to encourage them to be larger
+    weighted_eigen_variance[1] = (eigen_variance*local_eigen_variance[1]);
+    for(q in 2:Q){
+      weighted_eigen_variance[q] = (eigen_variance*local_eigen_variance[q]);
     }
     
     
@@ -158,9 +159,9 @@ model{
     eigen_variance ~ normal(0,1);
     
     
-    eigen_differences[1] ~ normal(60,1);
+    eigen_differences[1] ~ normal(10,1);
     for(q in 2:Q){
-      eigen_differences[q] ~ normal(0, weighted_eigen_variance[q - 1]);
+      eigen_differences[q] ~ normal(0, weighted_eigen_variance[q]);
     }
     
     for(q in 1:Q){

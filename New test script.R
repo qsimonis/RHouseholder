@@ -279,9 +279,9 @@ CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
                                                          data1.dim = D1, data2.dim = D2,
                                                          column.variances = view.specific.column.variances)
   wishart.matrix <- wishart.matrix.generator(n.row = d, n.col = d)
-  wishart.eigenvalues <- eigen(wishart.matrix)$values
-  sparse.wishart.eigenvalues <- sparse.eigenvalue.simulator(wishart.eigenvalues, proportion = .5, max = 1, shrinkage = .5)
-  shared.matrix <- shared.covariance.generator.eigen(sqrt(sparse.wishart.eigenvalues))
+  wishart.eigenvalues <- sqrt(eigen(wishart.matrix)$values)
+  sparse.wishart.eigenvalues <- sparse.eigenvalue.simulator(wishart.eigenvalues, proportion = .7, max = 1, shrinkage = .5)
+  shared.matrix <- shared.covariance.generator.eigen(sparse.wishart.eigenvalues)
   view.noise <- noise.covariance.generator(data1.dim = D1, data2.dim = D2, shared.noise.1 = .3, shared.noise.2 = .5)
   generated.data <- view.specific.matrix %*% t(rmvnorm(n = n, mean = rep(0, ncol(view.specific.matrix)), sigma = diag(ncol(view.specific.matrix)))) + 
     shared.matrix%*%t(rmvnorm(n = n, mean = rep(0, ncol(shared.matrix)), sigma = diag(ncol(shared.matrix)))) + 
@@ -297,14 +297,16 @@ CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
 library(rstan)
 library(extraDistr)
 n = 300
-D1 = 10
-D2 = 8
+D1 = 15
+D2 = 12
 K1 = 5
 K2 = 6
 k = K1 + K2
 d = D1 + D2
 
 Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2)
+
+num.of.zero <- sum(Generated.data$`sparse shared eigenvalues`< 1)
 
 CCA.data <- list(
   N = n,
@@ -324,15 +326,18 @@ chain.1 = list(eigen_weight = sort(rbeta((d), shape1 = .1, shape2 = .1), decreas
                               uni.max*runif(d/2 , min = .25 , max = 1)), decreasing = T),
                column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
 
-names(chain.1) = c("eigen_weight", "eigen_roots_corrected", "column_variances")
+chain.1 = list(column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
+
+names(chain.1) = c("column_variances")
 
 
 fit.householder <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
 
-fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
+fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 300, control = list(max_treedepth = 12, adapt_delta = .4))
 
-summary(fit.householder, pars = c("eigen_roots"))$summary
-summary(fit.householder, pars = c("eigen_differences"))$summary
+
+summary(fit.householder.desktop, pars = c("eigen_roots"))$summary
+summary(fit.householder.desktop, pars = c("eigen_differences"))$summary
 summary(fit.householder.desktop, pars = c("local_eigen_variance"))$summary
 summary(fit.householder.desktop, pars = c("eigen_variance"))$summary
 summary(fit.householder.desktop, pars = c("weighted_eigen_variance"))$summary
