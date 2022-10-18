@@ -271,7 +271,7 @@ view.specific.matrix.generator <- function(view1.dim, view2.dim, data1.dim, data
   return(view.matrix)
 }
 
-CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
+CCA.normal.data.generator <- function(n, D1, D2, K1, K2, prop.CCA){
   k = K1 + K2
   d = D1 + D2
   view.specific.column.variances <- column.variance.generator(K1, K2)
@@ -280,7 +280,7 @@ CCA.normal.data.generator <- function(n, D1, D2, K1, K2){
                                                          column.variances = view.specific.column.variances)
   wishart.matrix <- wishart.matrix.generator(n.row = d, n.col = d)
   wishart.eigenvalues <- sqrt(eigen(wishart.matrix)$values)
-  sparse.wishart.eigenvalues <- sparse.eigenvalue.simulator(wishart.eigenvalues, proportion = .7, max = 1, shrinkage = .5)
+  sparse.wishart.eigenvalues <- sparse.eigenvalue.simulator(wishart.eigenvalues, proportion = prop.CCA, max = .1, shrinkage = .9)
   shared.matrix <- shared.covariance.generator.eigen(sparse.wishart.eigenvalues)
   view.noise <- noise.covariance.generator(data1.dim = D1, data2.dim = D2, shared.noise.1 = .3, shared.noise.2 = .5)
   generated.data <- view.specific.matrix %*% t(rmvnorm(n = n, mean = rep(0, ncol(view.specific.matrix)), sigma = diag(ncol(view.specific.matrix)))) + 
@@ -304,9 +304,9 @@ K2 = 6
 k = K1 + K2
 d = D1 + D2
 
-Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2)
+Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2, prop.CCA = .65)
 
-num.of.zero <- sum(Generated.data$`sparse shared eigenvalues`< 1)
+num.of.zero <- sum(Generated.data$`sparse shared eigenvalues`< .1)
 
 CCA.data <- list(
   N = n,
@@ -331,16 +331,21 @@ chain.1 = list(column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
 names(chain.1) = c("column_variances")
 
 
-fit.householder <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 100)
+fit.householder.seed.1 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 111, iter = 100)
+fit.householder.seed.2 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 4098, iter = 100,control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.seed.3 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 141, iter = 100,control = list(max_treedepth = 11, adapt_delta = .5))
+
 
 fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 300, control = list(max_treedepth = 12, adapt_delta = .4))
 
 
-summary(fit.householder.desktop, pars = c("eigen_roots"))$summary
-summary(fit.householder.desktop, pars = c("eigen_differences"))$summary
-summary(fit.householder.desktop, pars = c("local_eigen_variance"))$summary
-summary(fit.householder.desktop, pars = c("eigen_variance"))$summary
-summary(fit.householder.desktop, pars = c("weighted_eigen_variance"))$summary
+summary(fit.householder.seed.2, pars = c("eigen_roots"))$summary
+summary(fit.householder.seed.3, pars = c("eigen_differences"))$summary
+summary(fit.householder.seed.3, pars = c("local_eigen_variance"))$summary
+summary(fit.householder.seed.2, pars = c("eigen_variance"))$summary
+summary(fit.householder, pars = c("weighted_eigen_variance"))$summary
+summary(fit.householder.seed.1, pars = c("max_var"))$summary
+
 
 
 plot(summary(fit.householder.desktop, pars = c("eigen_roots")))
@@ -372,3 +377,6 @@ for(q in 1:Q){
 }
 
 
+for(q in 1:Q){
+  local_eigen_variance[q] ~ beta(.95, .95);
+}

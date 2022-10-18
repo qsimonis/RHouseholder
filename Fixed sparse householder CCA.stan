@@ -87,6 +87,7 @@ transformed parameters{
     vector[Q] eigen_max;
     vector[Q] eigen_min;
     vector[Q] weighted_eigen_variance;
+    vector[Q] max_var;
     
     eigen_roots[1] = exp(eigen_differences[1]);
     
@@ -107,6 +108,12 @@ transformed parameters{
     {
       for(q in 1:Q){
         eigen_max[q] = max(eigen_differences[1:q]);
+      }
+    }
+    
+    {
+      for(q in 1:Q){
+        max_var[q] = max(local_eigen_variance[1:q]);
       }
     }
     
@@ -159,13 +166,12 @@ model{
     eigen_variance ~ normal(0,1);
     
     
-    eigen_differences[1] ~ normal(10,1);
     for(q in 2:Q){
       eigen_differences[q] ~ normal(0, weighted_eigen_variance[q]);
     }
     
     for(q in 1:Q){
-      local_eigen_variance[q] ~ inv_gamma(eigen_min[q],eigen_max[q]);
+      local_eigen_variance[q] ~ normal(max_var[q],1);
     }
 
     for(j in 1:(K_1 + K_2)){
