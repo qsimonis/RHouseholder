@@ -331,12 +331,32 @@ chain.1 = list(column.variances = sort(rhcauchy(K1 + K2), decreasing = F))
 names(chain.1) = c("column_variances")
 
 
-fit.householder.seed.1 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 111, iter = 100)
-fit.householder.seed.2 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 4098, iter = 100,control = list(max_treedepth = 12, adapt_delta = .4))
-fit.householder.seed.3 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, seed = 141, iter = 100,control = list(max_treedepth = 11, adapt_delta = .5))
 
 
-fit.householder.desktop <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 1, iter = 300, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.1 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.2 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4697, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.3 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4545, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
+
+
+summary(fit.householder.desktop.1, pars = c("eigen_roots"))$summary
+summary(fit.householder.desktop.2, pars = c("eigen_roots"))$summary
+summary(fit.householder.desktop.3, pars = c("eigen_roots"))$summary
+
+stan_trace(fit.householder.desktop.1, pars = c("eigen_roots[1]","eigen_roots[2]", 
+                                               "eigen_roots[3]", "eigen_roots[4]"))
+
+stan_trace(fit.householder.desktop.2, pars = c("eigen_roots[13]","eigen_roots[14]", 
+                                               "eigen_roots[15]", "eigen_roots[16]"))
+
+stan_trace(fit.householder.desktop.3, pars = c("eigen_roots[1]","eigen_roots[2]", 
+                                               "eigen_roots[3]", "eigen_roots[4]"))
+
+
+
+
+
+
+
 
 
 summary(fit.householder.seed.2, pars = c("eigen_roots"))$summary
