@@ -304,7 +304,7 @@ K2 = 6
 k = K1 + K2
 d = D1 + D2
 
-Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2, prop.CCA = .65)
+Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2, prop.CCA = .5)
 
 num.of.zero <- sum(Generated.data$`sparse shared eigenvalues`< .1)
 
@@ -316,7 +316,8 @@ CCA.data <- list(
   D_2 = D2,
   K_1 = K1,
   K_2 = K2,
-  Q = d
+  Q = d,
+  k = k
 )
 
 set.seed(4333213)
@@ -332,15 +333,69 @@ names(chain.1) = c("column_variances")
 
 
 
+fit.householder.desktop.1 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
 
 fit.householder.desktop.1 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
 fit.householder.desktop.2 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4697, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
 fit.householder.desktop.3 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4545, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
 
 
-summary(fit.householder.desktop.1, pars = c("eigen_roots"))$summary
+estimates.1 <- get_posterior_mean(fit.householder.desktop.1, pars = c("eigen_roots"))
+summary(fit.householder.desktop.1, pars = c("eigen_roots"))$summary[ , "50%"]
 summary(fit.householder.desktop.2, pars = c("eigen_roots"))$summary
 summary(fit.householder.desktop.3, pars = c("eigen_roots"))$summary
+
+dim.ratio <- function(CCA_data){
+  return((CCA_data$Q)/CCA_data$N)
+}
+
+dim.ratio(CCA_data = CCA.data)
+
+estimated.zeros <- function(fit){
+  sum(summary(fit, pars = c("eigen_roots"))$summary[ , "50%"] < 1)
+}
+
+estimated.nonzeros <- function(fit){
+  sum(summary(fit, pars = c("eigen_roots"))$summary[ , "50%"] >= 1)
+}
+
+posterior.mean.squared <- function(generated_data, fit){
+  true.eigenvalues <- generated_data$`sparse shared eigenvalues`
+  median.eigenvalues <- summary(fit, pars = c("eigen_roots"))$summary[ , "50%"]
+  error <- true.eigenvalues - median.eigenvalues
+  return(mean(error^2))
+}
+
+true.zeros <- function(generated_data){
+  return(sum(generated_data$`sparse shared eigenvalues` < 1))
+}
+
+true.nonzeros <- function(generated_data){
+  return(sum(generated_data$`sparse shared eigenvalues` >= 1))
+}
+
+eigenvalue.proportion <- function(CCA_data){
+  return(CCA_data$k/CCA_data$D)
+}
+eigenvalue.proportion(CCA_data = CCA.data)
+
+true.zeros(generated_data = Generated.data)
+
+true.nonzeros(generated_data = Generated.data)
+
+estimated.zeros(fit = fit.householder.desktop.1)
+
+estimated.nonzeros(fit = fit.householder.desktop.1)
+
+posterior.mean.squared(generated_data = Generated.data,
+                       fit = fit.householder.desktop.1)
+
+
+
+
+
+
+
 
 stan_trace(fit.householder.desktop.1, pars = c("eigen_roots[1]","eigen_roots[2]", 
                                                "eigen_roots[3]", "eigen_roots[4]"))
