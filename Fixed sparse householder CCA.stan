@@ -74,8 +74,9 @@ parameters{
     real<lower = 0> tau_2;
     real<lower = 0> eigen_variance;
     vector[K_1 + K_2] X[N];
-    positive_ordered[K_1 + K_2] column_variances;
+    vector<lower = 0>[K_1 + K_2] column_variances;
     vector[D_1*K_1 + D_2*K_2] view_vector;
+
 
 }
 transformed parameters{
@@ -164,8 +165,7 @@ model{
     tau_1 ~ cauchy(0,1);
     tau_2 ~ cauchy(0,1);
     eigen_variance ~ normal(0,1);
-    
-    
+
     for(q in 2:Q){
       eigen_differences[q] ~ normal(0, weighted_eigen_variance[q]);
     }

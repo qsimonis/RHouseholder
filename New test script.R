@@ -296,15 +296,15 @@ CCA.normal.data.generator <- function(n, D1, D2, K1, K2, prop.CCA){
   
 library(rstan)
 library(extraDistr)
-n = 300
-D1 = 15
-D2 = 12
-K1 = 5
-K2 = 6
+n = 1000
+D1 = 5
+D2 = 5
+K1 = 2
+K2 = 1
 k = K1 + K2
 d = D1 + D2
 
-Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2, prop.CCA = .5)
+Generated.data <- CCA.normal.data.generator(n = n, D1 = D1, D2 = D2, K1 = K1, K2 = K2, prop.CCA = .7)
 
 num.of.zero <- sum(Generated.data$`sparse shared eigenvalues`< .1)
 
@@ -333,17 +333,20 @@ names(chain.1) = c("column_variances")
 
 
 
-fit.householder.desktop.1 <- stan(file = "D:/School/Projects/GitMCMCHouseholder/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.1 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 250, control = list(max_treedepth = 12, adapt_delta = .4))
 
 fit.householder.desktop.1 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 303, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
-fit.householder.desktop.2 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4697, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
-fit.householder.desktop.3 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 4545, iter = 150, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.2 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 111011101, iter = 250, control = list(max_treedepth = 12, adapt_delta = .4))
+fit.householder.desktop.3 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Fixed sparse householder CCA.stan", data = CCA.data, chains = 3, seed = 8, iter = 250)
 
 
 estimates.1 <- get_posterior_mean(fit.householder.desktop.1, pars = c("eigen_roots"))
 summary(fit.householder.desktop.1, pars = c("eigen_roots"))$summary[ , "50%"]
-summary(fit.householder.desktop.2, pars = c("eigen_roots"))$summary
-summary(fit.householder.desktop.3, pars = c("eigen_roots"))$summary
+summary(fit.householder.desktop.2, pars = c("eigen_roots"))$summary[ , "50%"]
+summary(fit.householder.desktop.3, pars = c("eigen_roots"))
+
+summary(fit.householder.desktop.3, pars = c("column_variances"))$summary[ , "50%"]
+
 
 dim.ratio <- function(CCA_data){
   return((CCA_data$Q)/CCA_data$N)
@@ -362,7 +365,10 @@ estimated.nonzeros <- function(fit){
 posterior.mean.squared <- function(generated_data, fit){
   true.eigenvalues <- generated_data$`sparse shared eigenvalues`
   median.eigenvalues <- summary(fit, pars = c("eigen_roots"))$summary[ , "50%"]
-  error <- true.eigenvalues - median.eigenvalues
+  error <- rep(0,sum(Generated.data$`sparse shared eigenvalues` < 1))
+  for(i in 1:length(error)){
+    error[i] = true.eigenvalues[i] - median.eigenvalues[i]
+  }
   return(mean(error^2))
 }
 
@@ -377,6 +383,7 @@ true.nonzeros <- function(generated_data){
 eigenvalue.proportion <- function(CCA_data){
   return(CCA_data$k/CCA_data$D)
 }
+
 eigenvalue.proportion(CCA_data = CCA.data)
 
 true.zeros(generated_data = Generated.data)
@@ -385,10 +392,10 @@ true.nonzeros(generated_data = Generated.data)
 
 estimated.zeros(fit = fit.householder.desktop.1)
 
-estimated.nonzeros(fit = fit.householder.desktop.1)
+estimated.zeros(fit = fit.householder.desktop.3)
 
 posterior.mean.squared(generated_data = Generated.data,
-                       fit = fit.householder.desktop.1)
+                       fit = fit.householder.desktop.3)
 
 
 
