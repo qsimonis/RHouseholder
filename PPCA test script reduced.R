@@ -23,6 +23,10 @@ shared.covariance.generator.eigen <- function(eigenvalues){
   return(Generated.covariance)
 }
 
+set.seed(1234)
+eigen(shared.covariance.generator.eigen(Generated.data$Eigenvalues))
+
+
 noise.covariance.generator <- function(d, noise){
   covariance.noise <- matrix(0, nrow = d, ncol = d)
   for(i in 1:d){
@@ -45,8 +49,8 @@ PCA.normal.data.generator <- function(n, d, prop_sparse, mu0, mu1, mu2, sd, data
 library(rstan)
 library(extraDistr)
 n = 1000
-d = 25
-prop_anom = .85
+d = 12
+prop_anom = .4
 desired_first_eigen_mean = 5
 
 set.seed(11141)
@@ -64,12 +68,14 @@ PCA.data <- list(
   N = n,
   D = d,
   Y = t(Generated.data$`Generated Data`),
-  eigenvalue_tuning_number = 1
+  K = 2
 )
 
 
 simulated_eigenvalues <- data.frame(Generated.data$Eigenvalues)
 fit.householder.desktop.1 <- stan(file = "C:/Users/qsimo/Documents/Code/RHouseholder/Eigenvalue mixture PPCA.stan", data = PCA.data, chains = 9, seed = 781, iter = 250, control = list(adapt_delta = .99))
+
+fit.householder.desktop.new <- stan(file = "D:/School/Projects/RHouseholder/Eigenvalue mixture PPCA new.stan", data = PCA.data, chains = 4, seed = 781, iter = 250, control = list(adapt_delta = .99))
 
 
 summary(fit.householder.desktop.1, pars = c("eigen_roots"))
